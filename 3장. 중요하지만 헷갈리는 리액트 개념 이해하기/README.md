@@ -68,7 +68,141 @@ function myComponent() {
 1. 불필요한 렌더링이 발생할 수 있다. 콘텍스트 데이터를 객체로 전달하면 렌더링될 때마다 새로운 객체가 새성되기 때문에 데이터 전체를 전달해야 한다. 
 2. Proider 컴포넌트로 Consumer를 꼭 감싸줘야 한다. 
 
+간단한 예시 https://codepen.io/darylthornhill/pen/pooXMwq
+
 ## ref 속성값으로 자식 요소에 접근하기
 
-돔 요소에 직접 접근해야 할 때 ref 속성값을 이용해 자식요소에 접근할 수 있다. 
+돔 요소에 직접 접근해야 할 때 ref 속성값을 이용해 자식요소에 접근할 수 있다. useRef 훅이 반환하는 ref 객체를 이용해 자식 요소에 접근할 수 있다. 자식 요소의 ref 속성 값에 ref 객체를 입력한 뒤 해당 돔 요소 혹은 컴포넌트가 생성되면 ref 객체의 current 속성을 이용해 자식 요소에 접근할 수 있다.
 
+### ref 값의 활용
+- forwardRef 함수로 부모 컴포넌트엑서 넘어온 ref 속성값 직접 처리하기
+ ```
+ const FancyButton = React.forwardRef((props, ref) => (
+   <button ref={ref} className="FancyButton">
+     {props.children}
+   </button>
+ ));
+
+ // 이제 DOM 버튼으로 ref를 작접 받을 수 있습니다.
+ const ref = React.createRef();
+ <FancyButton ref={ref}>Click me!</FancyButton>;
+ ```
+ 코드 출처: https://ko.reactjs.org/docs/forwarding-refs.html
+
+* 주의할 점
+컴포넌트가 생성된 이후라도 조건부 렌더링을 하는 경우 ref 속성값을 입력한 요소가 존재하지 않을 수 있기 때문에 current 속성 존재 여부를 검사하는 코드가 필요하니 유의해야 한다. 
+
+## 리액트 내장 훅 
+
+### useContext: Consumer컴포넌트 없이 콘텍스트 사용
+```
+function ChildComponent() {
+ const user = useContext(UserContext);
+}
+```
+useContext를 사용하면 Consumer를 사용하지 않고도 context 데이터를 사용할 수 있게 된다.
+
+### useref: 렌더링과 무관한 값 저장
+컴포넌트 내부에서 생성되는 값 중 렌더링과 무관한 값을 저장할 때 사용한다. 
+예를 들어, useRef 훅을 이용해서 이전 상탯값을 저장할 수 있다. 
+```
+function Profile() {
+ const [age, setAge] = useState(20);
+ const prevAgeRef = useRef(20);
+ useEffect(
+  () => {
+   prevAgeRef.current = age; 
+  }, [age],
+ )
+ 
+ const prevAge = prevAgeRef.current;
+ return (<></>)
+}
+```
+age 값이 변경되면 그 값을 prevAgeRef에 저장한다. 
+
+### useMemo & useCallback: 메모이제이션 훅
+이전 값을 기억해 성능을 최적화하는 용도로 사용된다. 
+
+- useMemo: 계산량이 많은 함수의 반환값을 재활용한다. 
+```
+function MyComponent({v1, v2}) {
+ const value = useMemo(() => runExpensiveJob(v1, v2), [v1, v2]);
+ return (<p>{value}</p>);
+}
+```
+의존성 배열이 변경되지 않으면 이전에 계산된 값을 기억하고 사용한다. 
+
+- useCallback: 함수를 재활용하여 불필요한 렌더링을 막는다.
+```
+function Profile() {
+ const [name, setName] = useState('');
+ const [age, setAge] = useState(0);
+ const onSave = useCallback(() => saveToServer(name, age), [name, age]);
+ return (<UserEdit onSave={onSave} />)
+}
+```
+의존성 배열이 변경되지 않으면 이전에 생성한 함수가 재사용된다. 
+
+### useReducer: 컴포넌트의 상탯값 관리하기
+상위 컴포넌트에서 트리 깊은 곳으로 이벤트 처리 함수를 쉽게 전달할 수 있다. 
+```
+const initialState = {count: 0};
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'increment':
+      return {count: state.count + 1};
+    case 'decrement':
+      return {count: state.count - 1};
+    default:
+      throw new Error();
+  }
+}
+
+function Counter() {
+  const [state, dispatch] = useReducer(reducer, initialState);
+  return (
+    <>
+      Count: {state.count}
+      <button onClick={() => dispatch({type: 'decrement'})}>-</button>
+      <button onClick={() => dispatch({type: 'increment'})}>+</button>
+    </>
+  );
+}
+```
+코드 출처: https://ko.reactjs.org/docs/hooks-reference.html#usereducer
+
+### useImperativeHandle: 부모 컴포넌트에서 접근 가능한 함수 구현
+부모 컴포넌트는 ref 객체를 통해 클래스형 컴포넌트인 자식 컴포넌트의 메서드를 호출할 수 있는데, useImperativeHandle 훅을 이용하면 함수형에서도 메서드가 있는 것처럼 만들 수 있다. 
+```
+function FancyInput(props, ref) {
+  const inputRef = useRef();
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current.focus();
+    }
+  }));
+  return <input ref={inputRef} ... />;
+}
+FancyInput = forwardRef(FancyInput);
+```
+코드 출처: https://ko.reactjs.org/docs/hooks-reference.html#usereducer
+
+### useLayoutEffect
+useEffect와 비슷하게 동작하지만 부수 효과 함수를 동기로 호출한다는 점이 다르다. 즉, 렌더링 결과가 돔에 반영된 직후에 호출된다. 이 훅에서 연산을 많이 하면 브라우저가 먹통이 될 수 있어 useEffect를 사용하는 것이 성능상 이점이 있다.
+
+### useDebugValue
+커스텀 훅의 내부 상태를 관찰할 수 있어 디버깅에 도움이 된다. 리액트 개발자 도구에서 확인할 수 있다. 
+```
+function useFriendStatus(friendID) {
+  const [isOnline, setIsOnline] = useState(null);
+
+  // ...
+
+  // Show a label in DevTools next to this Hook
+  // e.g. "FriendStatus: Online"
+  useDebugValue(isOnline ? 'Online' : 'Offline');
+
+  return isOnline;
+```
