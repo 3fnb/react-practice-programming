@@ -133,9 +133,98 @@
   MyComponent.contextType = ThemeContext;
   ```
 ## 컴포넌트의 공통 기능 관리하기
-- 클래스형 컴포넌트에서는 훅 대신 고차 컴포넌트와 렌더 속성값 패턴으로 공통 기능을 관리할 수 있다. 
+클래스형 컴포넌트에서는 훅 대신 고차 컴포넌트와 렌더 속성값 패턴으로 공통 기능을 관리할 수 있다. 
 ### 고차 컴포넌트
 - 고차 컴포넌트는 컴포넌트를 입력으로 받아서 컴포넌트를 출력해주는 함수다. 
+ ```  
+ //마운트 여부를 알려 주는 고차 컴포넌트
+ function withHasMounted(InputComponent) {
+  return class OutputComponent extends React.Component {
+    state = {
+      hasMounted: false;
+    }
+    componentDidMount() {
+      this.setState({hasMounted: true})
+    }
+    render() {
+      const {hasMounted} = this.state;
+      return <InputComponent {...this.props} hasMounted={hasMounted} />;
+    }
+  };
+ }
+ ```
+ #### 주의할 점
+ 입력되는 컴포넌트가 정적 메서드를 가지고 있을 때 출력되는 컴포넌트에 정적 메서드가 전달되지 않기 때문에 hoist-non-react-statics 패키지를 사용해 해결한다. 
+ #### 단점
+ - 속성값이 암묵적으로 넘어온다. 
+ - 서로 다른 고차 컴포넌트가 똑같은 속성값 이름을 사용할 때 마지막으로 호출된 고차 컴포넌트의 속성값으로 덮어써진다. 
+ - 타입스크립트와 사용할 때 타입 정의가 어렵다. 
+ - 항상 함수로 감싸고, displayName을 설정하고, 정적 메서드를 전달하기 위한 코드가 필요하다.(의례적인 절차가 필요하다.)
+
+### 렌더 속성값을 이용
+- 코드 재사용을 위해 함수 타입의 속성값을 이용하는 패턴이다. 
+```
+//마우스의 위치 정보를 알려 주는 렌더 속성값
+
+//MouseTracer.tsx
+class MouseTracer extends React.Component {
+  state = {
+    x: null,
+    y: null,
+  }
+  onMouseMove = e => {
+    this.setState({
+      x: e.clientX,
+      y: e.clientY,
+    })
+  }
+  render () {
+    const {children} = this.props;
+    const {x, y} = this.state;
+    return <div onMouseMove={this.onMouseMove}>{children({x, y})}</div>;
+  }
+}
+```
+- 렌더 속성값은 고차 컴포넌트가 가지고 있던 모든 단점이 존재하지 않는다. 
+#### 단점
+- 렌더 함수가 호출될 때마다 새로운 함수를 만들기 때문에 성능에 부정적인 영향을 준다.(오래된 브라우저가 아니라면 이는 상관 없다.)
+- 사용하는 쪽의 렌더 함수가 복잡해진다.
+
 ## 클래스형 컴포넌트와 훅의 관계
+훅은 기존 클래스형 컴포넌트의 여러가지 문제를 해결해주기 때문에 훅을 사용해 함수형 컴포넌트로 작성하는게 좋다. 
+- 로직을 재사용하는 기존 방식의 한계: 렌더 속성값과 고차 컴포넌트를 사용하면 새로운 컴포넌트를 생성하기 때문에 리액트 요소 트리가 깊어져 디버깅을 함들게 하는 원인이 된다.
+- 클래스형 컴포넌트의 한계: 서로 연관성이 없는 로직을 하나의 생명 주기 메서드에서 작성하는 경우가 많다. 
+#### 훅의 장점
+- 재사용 가능한 로직을 쉽게 만들 수 있다.
+- 같은 로직을 한 곳으로 모을 수 있어 가독성이 좋다. 
+- 정적 타입 언어로 정의하기 쉽다. 
+
 ## 클래스형 컴포넌트를 훅으로 변환하기
+- constructor: 속성값으로부터 계산된 초기 상탯값은 useState의 인수로 사용하고, 컴포넌트 최초 호출 시에만 특정 함수를 호출하기 위해서 useRef를 사용할 수 있다.
+- componentDidUpdate: useEffect훅은 최초 렌더링 후에도 호출되므로 이를 피하기 위해 useRef를 사용할 수 있다. 
+  ```
+  function useOnUpdate(func) {
+    const isMountedRef = useRef(false);
+    useEffect(() => {
+      if (isMountedRef.current) {
+        func();
+      } else {
+        isMountedRef.current = true;
+      }
+    })
+  }
+  ```
+- getDerivedStateFromProps: 속성값이 변경되면 상탯값이 바로 변경되도록 useState를 사용한다. 
+- forceUpdate: 필요한 경우 구현할 수 있으나 지양해야 한다.
+```
+function MyComponent () {
+  const [_, forceUpdate] = useReducer(s => s + 1, 0);
+  function onClick() {
+    forceUpdate();
+  }
+  ...
+}
+```
+
 ## 기존 클래스형 컴포넌트를 고려한 커스텀 훅 작성법
+커스텀 훅을 감싸는 래퍼 컴포넌트(고차 컴포넌트 또는 렌더 속성값으로 구현)를 만들면 클래스형 컴포넌트에서도 커스텀 훅의 로직을 재사용할 수 있다. 
