@@ -184,3 +184,106 @@ Link 컴포넌트와 Router 객체를 통해서 한다.
 
 `_error.js`를 만들어주면 된다.
 getServerSideProps를 통해 res,err를 인수로 받을 수 있는데 이를 통해 statusCode등을 얻을 수 있다.
+
+<br>
+
+## 넥스트 고급편
+
+코드 분할, 직접 띄운서버, styled-components 적용방법, 렌더링 결과 캐싱 및 미리 렌더링 방법을 알아보자.
+
+<br>
+
+### 페이지 공통 기능 구현
+
+`_app.js`를 이용하자.  
+\_app 컴포넌트는 `Components`와 `pageProps`를 props로 받는데, 컴포넌트에 pageProps를 넘겨주고, 그 위에 작성한 모든 jsx는 화면이 바뀌어도 언마운트 되지 않는다. 따라서 전역 상태 관리가 필요할 경우, app 컴포넌트를 이용할 수 도 있다.
+
+<br>
+
+### 코드 분할
+
+넥스트는 기본으로, 페이지별 번들파일을 생성한다. (단 동적 임포트 사용시 해당 모듈은 별로의 파일로 분리, 여러페이지에서 사용하는 공통 모듈도 분리된다.)
+
+1. 동적임포트를 사용해 조건부로 모듈을 불러온다.  
+   조건부로 import 코드를 작성, then으로 이어받아 원하는 행동을 작성한다.
+2. `getInitialProps`를 통한 동적 임포트는, 서버단에서 처리가 되기에 별도의 모듈로 빠지지 않는다.
+3. 웹팩의 splitChunks 설정을 통해, 여러페이지에서 공통으로 사용되는 모듈을 별도의 번들파일로 분리한다. 코드 변경에 따른 캐시 무효화를 최소화 하는 방향으로 설계되어있다.
+
+<br>
+
+### 웹 서버 직접 띄우기
+
+Next에 내장된 서버는 SSR 결과 캐시가 안되지만, 직접 띄운 서버에서는 처리할 수 있다.  
+웹팩으로만 만들었을때 처럼, `express`를 설치하고 `server.js`를 만든다.
+
+```jsx
+//server.js
+
+const express = require('express');
+const next = require('next');
+
+const port = 3000;
+const isDev = precess.env.NODE_ENV !== 'production';
+const app = next({isDev});
+const handle = app.getRequestHandler();
+
+app.prepare().then(()=>{
+  const server = express();
+
+  server.get('page/:id', (req,res)=>{
+    res.redirect(`/pages${req.params.id}`);
+  };
+  server.get('*',(req,res)=>{
+    return handle(req,res);
+  })
+
+  server.listen(port,err=>{
+    if(err)throw err;
+    console.log(`ready on http://localhost:${port}`)
+  }
+})
+
+```
+
+page/:id를 리다이렉트 해주는 부분 때문에 서버를 띄워준것이다.
+
+<br>
+
+## 렌더링 캐싱
+
+전에 써봤던 `lruCache`라이브러리를 통해 server.js에서 캐싱을 해준다.
+
+## 미리 렌더링
+
+### 참고
+
+[공식문서](https://nextjs.org/docs/basic-features/data-fetching/get-server-side-props)를 보면 진짜로 꼭 서버에서 데이터 패치를 해야하는 경우가 아니라면 getServerSideProps는 쓰지 말라고 한다.  
+getServerSideProps는 요청이 있을때마다 SSR을 하고, 추가 설정 없이는 결과가 CDN에 캐시되지 않기때문.
+
+getInitialProps의 경우, 사용시 미리 렌더링이 되지 않고, 요청시에 렌더링 되기 때문에 \_app에 선언하는것은 금물이다.
+
+<br>
+
+### next export
+
+1. next export 명령어를 cli에 사용해 전체 페이지를 미리 렌더링 시켜줄 수 있다.
+2. next.config.js에서 exportPathMap을 설정해주면, 미리 쿼리 파라미터 정보를 매핑해줄 수 있다.
+3. 웹팩 파일을 수정해 정적페이지와 동적 페이지를 둘 다 서비스 할 수 있다.
+
+## styled-components 사용
+
+웹팩에서 css-in-js 사용시에도, 페이지가 깜빡이지 않도록 미리 설정을 해주었다.  
+SSR시에도 동일하게 스타일 코드를 추출해 HTML에 삽입해주어야 한다.  
+\_document를 이용하자.
+
+[styled-components 공홈](https://styled-components.com/docs/advanced#nextjs)에도 잘 나와있다.
+
+\_document만 수정할 경우, 서버에서 만들어진 해쉬값, 클라이언트에서 만들어진 해쉬값이 달라져 문제가 발생한다.  
+따라서 바벨 플러그인을 하나 이용한다.
+
+```json
+{
+  "presets": ["next/babel"],
+  "plugins": ["babel-plugin-styled-components"]
+}
+```
