@@ -287,3 +287,25 @@ SSR시에도 동일하게 스타일 코드를 추출해 HTML에 삽입해주어�
   "plugins": ["babel-plugin-styled-components"]
 }
 ```
+
+<br>
+<hr>
+<br>
+
+## 정리
+
+`Isomorphic javascript`라는 말이 있다.  
+동형 자바스크립트. 서버와 클라이언트에서 동일하게 쓰이는 자바스크립트 라는 말이다.  
+이와 비슷하게 `Isomorphic rendering` 혹은 더 흔히 `universal rendering`이라고 부르는게 next와 react를 활용한 SSR에서 쓰이는 말이다.
+
+<br>
+
+처음 웹팩과 바벨로 SSR을 구현했던걸 생각해보자.
+
+1. `SSR`: React 컴포넌트를 `renderToString`을 통해 HTML로 변경해 res를 내보낸다.(이는 [동기적](https://velog.io/@jay/React-18-%EB%B3%80%EA%B2%BD%EC%A0%90)으로 발생해 한 단계만 느려져도 화면이 그려지지 않았지만, react18의 `renderToPipeableStream`과 `suspense`를 사용하면 개선할 수 있다. )
+2. `hydrate`: HTML을 받아 js를 붙여 client에서 react가 작동할수 있도록 도와준다.
+3. `CSR`: 리액트 코드를 통해 상호작용한다.
+
+리액트에 SSR을 적용하는것은 정확하게 SSR을 하는것보다, SSR + CSR = 유니버셜 렌더링이다.
+
+<br>
